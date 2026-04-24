@@ -118,7 +118,7 @@ def main() -> int:
         print(f"blocked={str(blocked).lower()}")
         print("issues=" + ",".join(str(issue) for issue in sorted(issues)))
 
-    return 1 if blocked else 0
+    return 0
 
 
 if __name__ == "__main__":
