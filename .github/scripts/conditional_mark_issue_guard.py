@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import glob
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,7 @@ import yaml
 ISSUE_URL_RE = re.compile(r"https://github\.com/[^/]+/[^/]+/issues/(\d+)")
 ENTRY_TYPES = {"skip", "xfail"}
 TARGET_KEYS = {"testdir", "testpath"}
+MARK_FILE_GLOB = "**/test_mark_conditions*.yaml"
 
 
 def extract_issue_numbers(value: Any) -> set[int]:
@@ -84,7 +87,7 @@ def collect_issues_from_document(document: Any) -> set[int]:
 
 def load_issue_set(search_root: Path) -> set[int]:
     issues: set[int] = set()
-    pattern = str(search_root / "**" / "test_mark_conditions*.yaml")
+    pattern = str(search_root / MARK_FILE_GLOB)
 
     for file_name in glob.glob(pattern, recursive=True):
         file_path = Path(file_name)
@@ -95,20 +98,67 @@ def load_issue_set(search_root: Path) -> set[int]:
     return issues
 
 
+def split_branches(branches_arg: str) -> list[str]:
+    branches = re.split(r"[\s,]+", branches_arg.strip())
+    return [branch for branch in branches if branch]
+
+
+def list_branch_mark_files(ref: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", ref],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [
+        path
+        for path in result.stdout.splitlines()
+        if fnmatch.fnmatch(path, MARK_FILE_GLOB)
+    ]
+
+
+def load_issue_set_from_branch(ref: str) -> set[int]:
+    issues: set[int] = set()
+
+    for file_path in list_branch_mark_files(ref):
+        result = subprocess.run(
+            ["git", "show", f"{ref}:{file_path}"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        document = yaml.safe_load(result.stdout) or {}
+        issues.update(collect_issues_from_document(document))
+
+    return issues
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--issue-number", type=int, required=True)
     parser.add_argument("--search-root", default=".")
     parser.add_argument("--output-json", action="store_true")
+    parser.add_argument(
+        "--branches",
+        default="",
+        help="Whitespace- or comma-separated git refs to scan in addition to the current checkout.",
+    )
     args = parser.parse_args()
 
     issues = load_issue_set(Path(args.search_root).resolve())
+    branches_examined: list[str] = []
+
+    for branch in split_branches(args.branches):
+        issues.update(load_issue_set_from_branch(branch))
+        branches_examined.append(branch)
+
     blocked = args.issue_number in issues
 
     result = {
         "blocked": blocked,
-        "blocked_issue": args.issue_number,
+        "checked_issue": args.issue_number,
         "all_conditional_mark_issues": sorted(issues),
+        "branches_examined": branches_examined,
     }
 
     if args.output_json:

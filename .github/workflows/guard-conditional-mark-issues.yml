@@ -9,6 +9,13 @@ permissions:
   contents: read
   issues: write
 
+env:
+  ALLOWED_CONDITIONAL_MARK_BRANCHES: |
+    main
+    202511
+    202505
+    202412
+
 jobs:
   reopen-conditional-mark-issue:
     if: github.event.repository.default_branch == 'main'
@@ -19,6 +26,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          fetch-depth: 0
+
+      - name: Fetch allowed branches
+        run: |
+          while IFS= read -r branch; do
+            if [ -n "$branch" ]; then
+              if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+                git fetch --no-tags origin "$branch:$branch"
+              else
+                echo "Skipping missing branch: $branch"
+              fi
+            fi
+          done <<'EOF'
+          ${{ env.ALLOWED_CONDITIONAL_MARK_BRANCHES }}
+          EOF
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,10 +54,12 @@ jobs:
         id: check
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CONDITIONAL_MARK_BRANCHES: ${{ env.ALLOWED_CONDITIONAL_MARK_BRANCHES }}
         run: |
           python .github/scripts/conditional_mark_issue_guard.py \
             --issue-number "$ISSUE_NUMBER" \
             --search-root . \
+            --branches "$CONDITIONAL_MARK_BRANCHES" \
             --output-json > result.json
           cat result.json
           blocked=$(python - <<'PY'
