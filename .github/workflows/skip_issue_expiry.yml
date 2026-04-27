@@ -33,8 +33,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SKIP_EXPIRY_BOT_LOGIN: github-actions[bot]
+          NO_OP_FLAG: ${{ github.event.inputs.no_op == 'true' && '--no-op' || '' }}
         run: |
           python tools/skip_expiry/run_skip_issue_expiry.py \
             --repo-root . \
             --config .github/SKIP_EXPIRY_CONFIG.yaml \
-            --conditional-mark-dir conditional_mark
+            --conditional-mark-dir conditional_mark \
+            ${NO_OP_FLAG}
