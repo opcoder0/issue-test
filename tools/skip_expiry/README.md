@@ -26,4 +26,5 @@ python tools/skip_expiry/run_skip_issue_expiry.py \
 Required environment variables:
 
 - `GITHUB_TOKEN`
+- `GITHUB_APP_TOKEN` or `GH_APP_TOKEN` when `PROJECT_ID` is set for Project V2 reporting
 - Optional: `SKIP_EXPIRY_BOT_LOGIN` (defaults to `github-actions[bot]`)
