@@ -56,5 +56,5 @@ jobs:
           python tools/skip_expiry/run_skip_issue_expiry.py \
             --repo-root . \
             --config .github/SKIP_EXPIRY_CONFIG.yaml \
-            --conditional-mark-dir tests/common/plugins/conditional_mark \
+            --conditional-mark-dir conditional_mark \
             ${NO_OP_FLAG}
